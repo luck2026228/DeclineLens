@@ -126,7 +126,7 @@ jobs:
           echo "完事：$(gh release view "$TAG" --json url --jq .url)"
 
       - name: 存一份构建产物（Release 出问题时能对账）
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: DeclineLens-v${{ steps.ver.outputs.version }}
           path: dist/*.zip
