@@ -1,0 +1,56 @@
+name: 没收录的原因码 / Unrecognized decline code
+description: 界面显示了原始码但没给出中文解释，把报告贴进来就行
+title: "[码] "
+labels: ["dict"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **最省事的做法**：在插件弹窗或油猴面板底部点「复制报告」，然后直接粘到下面第一个框里。
+
+        报告是纯文本，只含 11 个诊断字段（时间、域名、HTTP 状态、原因码、错误类型、Stripe 原始英文报文、advice_code、银行原始码、风险等级、金额、币种）。
+        **不含**邮箱、姓名、账单地址、卡号、CVV —— 这些字段代码里从来不读取，所以也不可能出现在报告里。
+        真要不放心，粘之前自己看一眼再删掉不想给的行。
+
+  - type: textarea
+    id: report
+    attributes:
+      label: 复制出来的报告
+      description: 点「复制报告」→ 粘贴到这里
+      placeholder: |
+        [DeclineLens] 2026-08-28 14:32:07
+        站点: shop.example.com
+        原因码: some_new_code
+        HTTP: 402  类型: card_error
+        报文: Your card was declined.
+        建议: do_not_try_again
+        ...
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: guess
+    attributes:
+      label: 你知道它实际是什么意思吗（可选）
+      description: 打过银行电话、查过文档、或者自己试出来了——任何线索都有用
+      placeholder: 打过发卡行，说是境外订阅类交易被单独关了
+
+  - type: dropdown
+    id: variant
+    attributes:
+      label: 用的哪个版本
+      options:
+        - 油猴脚本版
+        - 插件版 · Chrome / Edge
+        - 插件版 · Firefox
+        - 两个都装了
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本号
+      description: 油猴版在管理器里能看到；插件版在 chrome://extensions 上
+      placeholder: 3.1.2

@@ -1,0 +1,15 @@
+{
+  "name": "declinelens",
+  "version": "3.1.2",
+  "description": "把 Stripe 藏在支付响应里的真实拒付原因翻译成人话，并告诉你下一步该做什么。浏览器插件 + 油猴脚本双形态，纯本地运行。",
+  "keywords": ["stripe", "decline-code", "payment", "userscript", "browser-extension", "chrome-extension", "tampermonkey"],
+  "license": "MIT",
+  "private": false,
+  "scripts": {
+    "test": "node test.js",
+    "build": "python build.py",
+    "check": "node --check DeclineLens.user.js"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

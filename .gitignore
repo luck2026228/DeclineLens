@@ -1,0 +1,16 @@
+# 打包产物
+dist/
+
+# 生成物：DeclineLens.user.js 由 build.py 从 userscript.template.js + dict.js 生成。
+# 但它**要**提交进仓库——用户从 raw 链接一键安装的就是它，油猴的自动更新也指着它。
+# 所以这里不忽略，只在这儿写清楚：不要手改它，改模板或字典然后重新 build。
+
+# Python
+__pycache__/
+*.pyc
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

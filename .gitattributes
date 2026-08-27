@@ -1,0 +1,9 @@
+# 全仓库统一 LF。
+# 这条不是洁癖：CI 里有一步是「重新构建，然后 git diff 必须干净」——
+# 用来保证提交的 DeclineLens.user.js 和源码同步。如果 Windows 上提交进了
+# CRLF，Linux 跑 build.py 写出 LF，那一步就会永远失败。
+* text=auto eol=lf
+
+*.png binary
+*.zip binary
+*.ico binary

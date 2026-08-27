@@ -1,0 +1,65 @@
+name: 坏了 / Bug report
+description: 抓不到、显示错了、界面出问题、装不上
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先看一眼 README 第十节「常见问题」，那里有两个高频误报：
+
+        1. **付款成功时什么都不显示** —— 这是设计如此，零记录时浮球完全隐藏。
+        2. **浮球一直不出现** —— 可能是这个站没触发拒付；也可能钩子被 CSP 挡了（插件版弹窗顶部会有黄条列域名）。后一种情况换油猴版就好。
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 出了什么问题
+      placeholder: 在 xxx 网站上付款被拒了，但面板里一条记录都没有
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 怎么重现
+      placeholder: |
+        1. 打开 ...
+        2. 用一张 ... 的卡付款
+        3. 页面报 declined，但面板是空的
+    validations:
+      required: true
+
+  - type: dropdown
+    id: variant
+    attributes:
+      label: 用的哪个版本
+      options:
+        - 油猴脚本版
+        - 插件版 · Chrome / Edge
+        - 插件版 · Firefox
+        - 两个都装了
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: 浏览器 + 脚本管理器 + 版本号
+      placeholder: Chrome 128 / Tampermonkey 5.3.2 / DeclineLens 3.1.2
+    validations:
+      required: true
+
+  - type: textarea
+    id: console
+    attributes:
+      label: 控制台报错（可选，但很有用）
+      description: F12 → Console，把红色的行贴进来
+      render: text
+
+  - type: checkboxes
+    id: selfcheck
+    attributes:
+      label: 跑过自检没
+      options:
+        - label: 我在本地跑过 `node test.js`，结果贴在下面（可选）

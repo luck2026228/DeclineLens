@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: 自检（构建 + 60 项断言）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: 重新构建（验证提交的 .user.js 与源码同步）
+        run: python build.py
+
+      - name: 提交的 DeclineLens.user.js 必须与构建产物一致
+        run: |
+          if ! git diff --quiet -- DeclineLens.user.js; then
+            echo "::error::DeclineLens.user.js 与源码不同步。请在本地跑 python build.py 并提交结果。"
+            git diff --stat -- DeclineLens.user.js
+            exit 1
+          fi
+          echo "OK：生成物与源码一致"
+
+      - name: 跑自检
+        run: node test.js
+
+      - name: 语法检查所有 JS
+        run: |
+          for f in content.js pagehook.js dict.js popup.js DeclineLens.user.js test.js; do
+            node --check "$f" || exit 1
+            echo "  ok  $f"
+          done
+
+      - name: 两份清单必须是合法 JSON 且版本号一致
+        run: |
+          python - <<'PY'
+          import json, io, sys, re
+          a = json.load(io.open("manifest.json", encoding="utf-8"))
+          b = json.load(io.open("manifest.firefox.json", encoding="utf-8"))
+          assert a["version"] == b["version"], (a["version"], b["version"])
+          us = io.open("DeclineLens.user.js", encoding="utf-8").read()
+          m = re.search(r"@version\s+(\S+)", us)
+          assert m and m.group(1) == a["version"], (m and m.group(1), a["version"])
+          sys.stdout.write("OK: version %s 三处一致\n" % a["version"])
+          PY
