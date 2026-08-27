@@ -72,6 +72,16 @@ if FF["version"] != VERSION:
     write("manifest.firefox.json", json.dumps(FF, ensure_ascii=False, indent=2) + "\n")
     print("↻ manifest.firefox.json 版本号已同步为 %s" % VERSION)
 
+# package.json 的版本号也一起同步。
+# 它不参与构建，但 npm 页面、GitHub 侧边栏、以及 `npm test` 的使用者都会看到它，
+# 对不上号的话在外人眼里就是"这项目版本管理很随意"。
+# 版本号的唯一来源始终是 manifest.json，这里只是跟着走。
+PKG = json.loads(read("package.json"))
+if PKG.get("version") != VERSION:
+    PKG["version"] = VERSION
+    write("package.json", json.dumps(PKG, ensure_ascii=False, indent=2) + "\n")
+    print("↻ package.json 版本号已同步为 %s" % VERSION)
+
 
 # ── 油猴脚本 ───────────────────────────────────────────────────────────────
 # 拼出来而不是写死，免得这三个字符串本身在替换时把自己也换掉

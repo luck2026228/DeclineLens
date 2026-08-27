@@ -1,0 +1,24 @@
+# 谁负责审这些文件。开 PR 时 GitHub 会自动请他 review。
+# 语法同 .gitignore，后写的规则覆盖先写的。
+
+# 兜底：整个仓库
+*                           @luck2026228
+
+# 隐私边界。这两个文件里的 PAY_URL 必须逐字一致，改动等于改变读取范围。
+/pagehook.js                @luck2026228
+/userscript.template.js     @luck2026228
+/content.js                 @luck2026228
+
+# 权限声明。任何新增权限都要单独说清楚理由。
+/manifest.json              @luck2026228
+/manifest.firefox.json      @luck2026228
+
+# 对外承诺，改之前先想清楚。
+/PRIVACY.md                 @luck2026228
+/SECURITY.md                @luck2026228
+/LICENSE                    @luck2026228
+
+# 构建与自检链路。
+/build.py                   @luck2026228
+/test.js                    @luck2026228
+/.github/workflows/         @luck2026228

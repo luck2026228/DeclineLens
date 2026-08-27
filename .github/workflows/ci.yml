@@ -6,6 +6,16 @@ on:
   pull_request:
   workflow_dispatch:
 
+# 最小权限：这个流程只读代码，什么都不写。
+# 不写这一段的话，GITHUB_TOKEN 默认可能拿到写权限 —— 用不上的权限就不该给。
+permissions:
+  contents: read
+
+concurrency:
+  # 同一个分支连续推几次时，只留最后一次；前面还在跑的直接取消，不浪费额度
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: 自检（构建 + 60 项断言）
@@ -43,15 +53,21 @@ jobs:
             echo "  ok  $f"
           done
 
-      - name: 两份清单必须是合法 JSON 且版本号一致
+      - name: 版本号必须四处一致
         run: |
           python - <<'PY'
           import json, io, sys, re
           a = json.load(io.open("manifest.json", encoding="utf-8"))
           b = json.load(io.open("manifest.firefox.json", encoding="utf-8"))
-          assert a["version"] == b["version"], (a["version"], b["version"])
+          p = json.load(io.open("package.json", encoding="utf-8"))
+          assert a["version"] == b["version"], ("firefox 清单", a["version"], b["version"])
+          assert a["version"] == p["version"], ("package.json", a["version"], p["version"])
           us = io.open("DeclineLens.user.js", encoding="utf-8").read()
           m = re.search(r"@version\s+(\S+)", us)
-          assert m and m.group(1) == a["version"], (m and m.group(1), a["version"])
-          sys.stdout.write("OK: version %s 三处一致\n" % a["version"])
+          assert m and m.group(1) == a["version"], ("油猴 @version", m and m.group(1), a["version"])
+          sys.stdout.write("OK: version %s 四处一致（manifest / firefox 清单 / package.json / 油猴 @version）\n"
+                           % a["version"])
           PY
+
+      - name: 文档体检（占位符 / 损坏字符 / 内部死链）
+        run: python check_docs.py

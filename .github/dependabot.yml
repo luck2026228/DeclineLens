@@ -1,0 +1,19 @@
+# 这个项目运行时零依赖 —— 没有 npm 包，没有 pip 包，没有供应链可以被投毒。
+#
+# 唯一需要跟进版本的是 CI 里用到的几个官方 Action（actions/checkout 之类）。
+# 它们会随 Node 运行时升级而弃用旧大版本，钉死不管的话某天 CI 会突然开始报废弃警告，
+# 再过一阵直接不能跑。让 Dependabot 每月提醒一次，比某天早上发现 CI 红了强。
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "构建 / CI"
+      - "依赖"

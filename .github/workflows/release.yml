@@ -1,0 +1,133 @@
+name: 发版
+
+# 打一个 v 开头的 tag，这里自动干完发版的全部活儿：
+#     跑自检 → 构建 → 核对版本号 → 生成正文 → 建 Release → 传两个 zip
+#
+# 用法（在本地）：
+#     1. 改 manifest.json 里的 version
+#     2. 在 CHANGELOG.md 里补上这一版的段落   ← 漏了这步这里会红，是故意的
+#     3. python build.py && node test.js
+#     4. git commit -am "DeclineLens vX.Y.Z" && git push
+#     5. git tag vX.Y.Z && git push origin vX.Y.Z
+#
+# 第 5 步一推，剩下的不用管。
+#
+# 手动补发也行：Actions → 发版 → Run workflow，填一个已经存在的 tag。
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的 tag（必须已经存在），例如 v3.1.2"
+        required: true
+        type: string
+
+# 最小权限：只需要往 Releases 里写东西，别的一概不给。
+permissions:
+  contents: write
+
+concurrency:
+  # 同一个 tag 重复触发时排队执行，免得两个任务同时去建同一个 Release
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: 构建并发布
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 取代码
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: tag 与 manifest 版本号必须一致
+        id: ver
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VER="${TAG#v}"
+          MAN=$(python -c "import json,io;print(json.load(io.open('manifest.json',encoding='utf-8'))['version'])")
+          echo "tag=$TAG"      >> "$GITHUB_OUTPUT"
+          echo "version=$VER"  >> "$GITHUB_OUTPUT"
+          if [ "$VER" != "$MAN" ]; then
+            echo "::error::tag 是 $TAG（版本号 $VER），但 manifest.json 里写的是 $MAN。两边必须一致。"
+            exit 1
+          fi
+          echo "OK：tag 与 manifest 都是 $VER"
+
+      - name: 跑自检（不过就不发）
+        run: node test.js
+
+      - name: 文档体检（发出去的 README 里不能有死链和占位符）
+        run: python check_docs.py
+
+      - name: 构建
+        run: python build.py
+
+      - name: 提交的 DeclineLens.user.js 必须与源码同步
+        run: |
+          if ! git diff --quiet -- DeclineLens.user.js; then
+            echo "::error::DeclineLens.user.js 与源码不同步。本地跑 python build.py 后重新提交、重新打 tag。"
+            git diff --stat -- DeclineLens.user.js
+            exit 1
+          fi
+          echo "OK：生成物与源码一致"
+
+      - name: 两个 zip 都得在
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          for k in chrome firefox; do
+            f="dist/DeclineLens-v$V-$k.zip"
+            [ -f "$f" ] || { echo "::error::缺少 $f"; exit 1; }
+            echo "  ok  $f  $(stat -c%s "$f") 字节"
+          done
+
+      - name: 生成 Release 正文
+        run: |
+          python make_release_notes.py "${{ steps.ver.outputs.version }}" > /tmp/notes.md
+          echo "正文 $(wc -c < /tmp/notes.md) 字节"
+          echo "--- 预览 ---"
+          head -20 /tmp/notes.md
+
+      - name: 建 Release 并上传
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          V="${{ steps.ver.outputs.version }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG 已存在，改成更新正文 + 覆盖附件"
+            gh release edit "$TAG" --title "$TAG" --notes-file /tmp/notes.md
+            gh release upload "$TAG" \
+              "dist/DeclineLens-v$V-chrome.zip" \
+              "dist/DeclineLens-v$V-firefox.zip" \
+              --clobber
+          else
+            gh release create "$TAG" \
+              "dist/DeclineLens-v$V-chrome.zip" \
+              "dist/DeclineLens-v$V-firefox.zip" \
+              --title "$TAG" \
+              --notes-file /tmp/notes.md \
+              --verify-tag
+          fi
+          echo "完事：$(gh release view "$TAG" --json url --jq .url)"
+
+      - name: 存一份构建产物（Release 出问题时能对账）
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeclineLens-v${{ steps.ver.outputs.version }}
+          path: dist/*.zip
+          retention-days: 90

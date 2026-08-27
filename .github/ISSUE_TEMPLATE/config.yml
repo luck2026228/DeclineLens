@@ -1,1 +1,19 @@
+# 开 issue 页面上，模板下方那几个「其他去处」的入口。
 blank_issues_enabled: true
+
+contact_links:
+  - name: 💬 提问 / 聊想法
+    url: https://github.com/luck2026228/DeclineLens/discussions
+    about: "「这个能不能……」「为什么这么设计」「我想加个功能」—— 这类先来讨论区，别直接开 issue，也别直接动手写代码。"
+
+  - name: 📖 先看常见问题
+    url: https://github.com/luck2026228/DeclineLens#十常见问题
+    about: "付款成功时什么都不显示、浮球一直不出现、翻译成了英文原文 —— 这三条占了绝大多数「报错」，而且都不是 bug。"
+
+  - name: 🆘 遇到问题去哪儿问
+    url: https://github.com/luck2026228/DeclineLens/blob/main/SUPPORT.md
+    about: "一张对照表，帮你判断该开 issue、该去讨论区，还是该走安全通道。"
+
+  - name: 🔒 报告安全漏洞（不要开公开 issue）
+    url: https://github.com/luck2026228/DeclineLens/security/advisories/new
+    about: "私密通道。修好之前外人看不到。威胁模型见 SECURITY.md。"

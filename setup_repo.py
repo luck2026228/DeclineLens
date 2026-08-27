@@ -5,10 +5,10 @@
 
 一条命令做完六件事：
     1. 把仓库地址写进 dict.js（全项目唯一的一处来源）
-    2. 替换 README 里的安装链接占位符
+    2. 把全部文档里的仓库地址统一成新的（占位符要换，上一次填的旧账号也要换）
     3. 重新构建（油猴脚本的 @downloadURL 等标签从 dict.js 取值，必须重出）
     4. 重出两张界面截图（地址填好后界面底部会多出「发个 issue」入口）
-    5. 逐项检查有没有漏网的占位符
+    5. 逐项检查有没有漏网的占位符或旧地址
     6. 本地 git：建仓库 / 提交这一版 / 记下远程地址 —— 做完只差一条 git push
 
 为什么需要这么个脚本：仓库地址是分散不了的 —— 油猴脚本的 @downloadURL /
@@ -154,15 +154,64 @@ def main():
     write("dict.js", d)
     print("✓ dict.js       REPO_URL → %s" % url)
 
-    # ── 2. README 里的安装链接占位符 ───────────────────────────────────
-    r = read("README.md")
-    n = r.count(USER_PH)
-    if n:
-        r = r.replace(USER_PH, user)
-        write("README.md", r)
-        print("✓ README.md     替换了 %d 处 %s" % (n, USER_PH))
-    else:
-        print("·  README.md    没有待替换的占位符")
+    # ── 2. 所有文档里的仓库地址 ────────────────────────────────────────
+    #
+    # 这一步以前只换 README 里的 <你的用户名> 占位符。换 GitHub 账号那次就栽在
+    # 这儿：README 早在第一次建仓时就把占位符换成旧用户名了，于是占位符一个都
+    # 搜不到，脚本高高兴兴打印「没有待替换的占位符」，而整套文档里全是指向旧账号
+    # 的死链接 —— 最后是手动 sed 补回来的。所以现在两件事一起干：
+    #     a) 占位符 <你的用户名>              → 新用户名
+    #     b) 上一次填进去的 旧用户名/旧仓库名  → 新用户名/新仓库名
+    # 旧地址取自第 1 步从 dict.js 读到的 old。那是全项目唯一的地址来源，
+    # 拿它当基准，比在正文里瞎猜哪个词是用户名靠谱得多。
+    #
+    # 用户名在文档里一共有四种长相，四种都得换 —— 头一版只换了第一种，
+    # 剩下三种是拿假账号跑一遍才炸出来的：
+    #     https://github.com/用户/仓库                     ← 正文链接
+    #     https://raw.githubusercontent.com/用户/仓库/...   ← 一键安装链接，换了个域名
+    #     https://img.shields.io/github/license/用户/仓库   ← README 顶上那排徽章
+    #     @用户                                            ← .github/CODEOWNERS 里的 @ 提及
+    # 前三种的共同点是「用户/仓库」这对路径段，所以按这对整体替换，一次盖住三种。
+    DOCS = ["README.md", "CONTRIBUTING.md", "SECURITY.md", "SUPPORT.md",
+            "ROADMAP.md", "CODE_OF_CONDUCT.md", "PRIVACY.md", "CHANGELOG.md",
+            "package.json",
+            ".github/CODEOWNERS",
+            ".github/PULL_REQUEST_TEMPLATE.md",
+            ".github/ISSUE_TEMPLATE/config.yml"]
+
+    old_user = old_repo = None
+    subs = [(USER_PH, user)]
+    mo = re.match(r"https?://github\.com/([^/]+)/([^/\s]+)", old or "")
+    if mo and PLACEHOLDER not in old and (mo.group(1), mo.group(2)) != (user, repo):
+        old_user, old_repo = mo.group(1), mo.group(2)
+        subs.append(("%s/%s" % (old_user, old_repo), "%s/%s" % (user, repo)))
+        # 行为准则和安全策略里留的联系邮箱也是按用户名拼出来的
+        subs.append(("%s@users.noreply.github.com" % old_user,
+                     "%s@users.noreply.github.com" % user))
+        # CODEOWNERS 里的 @提及。加 \b 是怕碰上 @张三 和 @张三丰 这种前缀撞车
+        subs.append((re.compile(r"@" + re.escape(old_user) + r"\b"), "@" + user))
+        print("·  发现旧地址 %s/%s，文档里一并改成 %s/%s"
+              % (old_user, old_repo, user, repo))
+
+    touched = 0
+    for p in DOCS:
+        if not os.path.exists(os.path.join(HERE, p)):
+            continue
+        t0 = read(p)
+        t, hit = t0, 0
+        for a, b in subs:
+            if hasattr(a, "sub"):
+                t, k = a.subn(b, t)
+                hit += k
+            else:
+                hit += t.count(a)
+                t = t.replace(a, b)
+        if t != t0:
+            write(p, t)
+            touched += 1
+            print("✓ %-34s 改了 %d 处" % (p, hit))
+    if not touched:
+        print("·  文档里的地址本来就是对的，没动")
 
     # ── 3. 重新构建 —— 不做这一步等于没改 ───────────────────────────────
     print("\n── 重新构建 ──")
@@ -211,14 +260,58 @@ def main():
         elif PLACEHOLDER in mm.group(1):
             problems.append("油猴脚本的 %s 还是占位符" % tag)
 
-    if USER_PH in read("README.md"):
-        problems.append("README.md 里还有没替换掉的 %s" % USER_PH)
+    # 除了本项目自己的地址，文档里出现别的 github.com/xxx/yyy 多半是旧账号没换干净。
+    # 下面两类是**合法**的，不能报：
+    #   · README 5.6 节讲的就是占位符长什么样
+    #   · 行为准则里引的 Mozilla 那套处理阶梯，是真的外部链接
+    #
+    # 注意这一段**不按 DOCS 名单扫，而是整个仓库扫一遍**。
+    # 按名单扫有个要命的毛病：漏掉一个文件，它就既不会被替换、也不会被检查，
+    # 于是脚本一路绿灯报"已完成"，而那个文件里全是死链接。反过来整树扫的话，
+    # 新加的文档忘了进名单，这里会直接红，红的内容正好告诉你该往名单里加谁。
+    OUTSIDE_OK = {("mozilla", "diversity")}
+    SKIP_DIR = {".git", "dist", "docs", "__pycache__", "node_modules", ".idea", ".vscode"}
+    SCAN_EXT = (".md", ".json", ".js", ".yml", ".yaml", ".py", ".txt", ".html")
+    # 跳过本脚本自己。占位符和示例地址的定义就写在这个文件里（USER_PH、上面那几行
+    # 注释），扫到自己必然报红，而且报的全是假的。build.py 里的 PLACEHOLDER 用拼接
+    # 绕开同一个问题，这里文件就一个，直接跳过更省事。
+    SELF = os.path.basename(os.path.abspath(__file__))
+
+    scanned = []
+    for root, dirs, files in os.walk(HERE):
+        dirs[:] = [x for x in dirs if x not in SKIP_DIR]
+        for fn in files:
+            if fn == SELF:
+                continue
+            if not (fn.endswith(SCAN_EXT) or fn == "CODEOWNERS"):
+                continue
+            rel = os.path.relpath(os.path.join(root, fn), HERE).replace("\\", "/")
+            try:
+                t = read(rel)
+            except (UnicodeDecodeError, OSError):
+                continue
+            scanned.append(rel)
+            if USER_PH in t:
+                problems.append("%s 里还有没替换掉的 %s" % (rel, USER_PH))
+            if old_user and old_user in t:
+                problems.append("%s 里还留着旧用户名 %s（多半是没进 DOCS 名单）"
+                                % (rel, old_user))
+            for u2, r2 in set(re.findall(
+                    r"github\.com/([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+)", t)):
+                r2 = r2[:-4] if r2.endswith(".git") else r2   # 克隆地址带 .git 后缀
+                if (u2, r2) == (user, repo) or (u2, r2) in OUTSIDE_OK:
+                    continue
+                if PLACEHOLDER in u2 or PLACEHOLDER in r2:
+                    continue
+                problems.append("%s 里还留着别的仓库地址：github.com/%s/%s" % (rel, u2, r2))
 
     if problems:
         sys.stderr.write("\n✗ 没弄干净：\n")
         for x in problems:
             sys.stderr.write("   - %s\n" % x)
         return 1
+
+    print("·  全仓库扫了 %d 个文件，没有残留的占位符或旧地址" % len(scanned))
 
     for tag in ("@downloadURL", "@updateURL", "@supportURL", "@homepageURL", "@namespace"):
         mm = re.search(r"//\s*%s\s+(\S+)" % tag, us)
@@ -253,16 +346,15 @@ def main():
         print("   git push -u origin main")
 
     print("")
-    print("   推完之后，最后去仓库页面 Releases → Create a new release，")
-    print("   Tag 填 v%s，把这两个文件拖进去：" % ver)
-    for kind in ("chrome", "firefox"):
-        print("        dist/DeclineLens-v%s-%s.zip" % (ver, kind))
+    print("   推完之后发第一个版本 —— 只要打个 tag，剩下全自动：")
+    print("        git tag v%s && git push origin v%s" % (ver, ver))
+    print("")
+    print("   这一推会触发 .github/workflows/release.yml，它替你干完这些：")
+    print("        跑自检 → 构建 → 核对版本号 → 生成 Release 正文 → 建 Release → 传两个 zip")
     print("   （dist/ 不进仓库，README 里的下载链接指的就是这个 Release）")
     print("")
-    print("   装了 GitHub 官方命令行 gh 的话，上面这些可以两条顶掉：")
+    print("   建仓库那步也能用 GitHub 官方命令行 gh 一条顶掉：")
     print("     gh repo create %s --public --source=. --push" % repo)
-    print('     gh release create v%s dist/*.zip --title "v%s" --notes-file CHANGELOG.md'
-          % (ver, ver))
     return 0
 
 

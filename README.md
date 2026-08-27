@@ -1,12 +1,49 @@
 # DeclineLens 拒付透视镜
 
+[![CI](https://github.com/luck2026228/DeclineLens/actions/workflows/ci.yml/badge.svg)](https://github.com/luck2026228/DeclineLens/actions/workflows/ci.yml)
+[![最新版本](https://img.shields.io/github/v/release/luck2026228/DeclineLens?label=%E6%9C%80%E6%96%B0%E7%89%88&color=2ea44f)](https://github.com/luck2026228/DeclineLens/releases/latest)
+[![许可证](https://img.shields.io/github/license/luck2026228/DeclineLens?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&color=blue)](LICENSE)
+[![下载量](https://img.shields.io/github/downloads/luck2026228/DeclineLens/total?label=%E4%B8%8B%E8%BD%BD%E9%87%8F&color=orange)](https://github.com/luck2026228/DeclineLens/releases)
+[![依赖](https://img.shields.io/badge/%E4%BE%9D%E8%B5%96-0-brightgreen)](package.json)
+[![网络请求](https://img.shields.io/badge/%E7%BD%91%E7%BB%9C%E8%AF%B7%E6%B1%82-0-brightgreen)](PRIVACY.md)
+
 **支付失败的时候，Stripe 其实已经把真正的原因写在响应里了 —— 只是页面不给你看。这个工具把它捞出来，翻译成人话，再告诉你下一步该干什么。**
 
 纯本地运行，零网络请求，不上传任何数据。两种形态任选：**浏览器插件**（Chrome / Edge / Firefox）或**油猴脚本**（单文件，Tampermonkey / Violentmonkey）。
 
 `MIT` · `55 个原因码` · `12 条报文规则` · `60 项自检` · `零依赖`
 
-[更新日志](CHANGELOG.md) · [隐私政策](PRIVACY.md) · [参与进来](CONTRIBUTING.md)
+---
+
+## 30 秒装上
+
+装好 [Tampermonkey](https://www.tampermonkey.net/) 之后，点这个链接：
+
+### 👉 [**DeclineLens.user.js**](https://github.com/luck2026228/DeclineLens/raw/main/DeclineLens.user.js)
+
+油猴会弹出安装页，点「安装」就完事了，以后自动更新。
+
+不想装油猴、要浏览器扩展的，看[第三节](#三装哪个版本)。
+
+---
+
+## 目录
+
+| | | |
+| --- | --- | --- |
+| [一、痛点](#一痛点为什么会有这个东西) —— 为什么会有这个东西 | [五、代码参数](#五代码参数) | [九、想加原因码](#九想加原因码--遇到没收录的) |
+| [二、它长什么样](#二它长什么样) | [六、隐私](#六隐私) | [十、常见问题](#十常见问题) |
+| [三、装哪个版本](#三装哪个版本) | [七、架构](#七架构为什么是两个文件而不是一个) —— 两个文件而不是一个 | [十一、仓库结构](#十一仓库结构) |
+| [四、使用方法](#四使用方法) | [八、自检](#八自检) | [十二、License](#十二license) · [English](#english) |
+
+**其他文档：**
+[更新日志](CHANGELOG.md) ·
+[隐私政策](PRIVACY.md) ·
+[安全策略](SECURITY.md) ·
+[参与进来](CONTRIBUTING.md) ·
+[路线图](ROADMAP.md) ·
+[遇到问题](SUPPORT.md) ·
+[行为准则](CODE_OF_CONDUCT.md)
 
 ---
 
@@ -153,7 +190,7 @@ https://raw.githubusercontent.com/luck2026228/DeclineLens/main/DeclineLens.user.
 
 **方式 A — 用打包好的 zip**
 
-1. 从 [Releases](../../releases) 下载 `DeclineLens-v3.1.2-chrome.zip`
+1. 从 [Releases](https://github.com/luck2026228/DeclineLens/releases/latest) 下载 `DeclineLens-v3.1.2-chrome.zip`
 2. 解压到一个**你不会随手删掉的目录**（Chrome 每次启动都要从这个路径读，删了插件就消失）
 3. 地址栏输 `chrome://extensions`
 4. 右上角打开「开发者模式」
@@ -491,25 +528,56 @@ DeclineLens/
 ├── popup.html / popup.js      # 插件版界面
 ├── userscript.template.js     # 油猴版模板（不能直接装，含占位符）
 ├── DeclineLens.user.js        # ★ 构建产物，但**要提交** —— raw 链接安装和自动更新都指着它
+│
 ├── build.py                   # 打包：两个 zip + 油猴脚本，带自检
 ├── test.js                    # 60 项自检，零依赖
+├── check_docs.py              # 文档体检：占位符 / 损坏字符 / 内部死链
 ├── make_icons.py              # 生成三个尺寸的图标
 ├── make_screenshots.py        # 用无头浏览器渲染真实界面，生成 docs/ 里的两张截图
+├── make_release_notes.py      # 从 CHANGELOG + manifest + dict.js 拼出 Release 正文
 ├── setup_repo.py              # 建仓后跑一次：把 REPO_URL 换成你的地址并重新构建
 ├── icon16/48/128.png
+│
 ├── .gitattributes             # 全仓库强制 LF（CI 有一步靠 git diff 判同步）
+├── .editorconfig              # 缩进与换行统一，免得编辑器互相改空白
 ├── .github/
-│   ├── workflows/ci.yml       # 每次 push：重新构建 + 验同步 + 跑 60 项自检
-│   └── ISSUE_TEMPLATE/        # 「没收录的码」和「坏了」两个模板
+│   ├── workflows/
+│   │   ├── ci.yml             # 每次 push：重新构建 + 验同步 + 60 项自检 + 文档体检
+│   │   └── release.yml        # 推一个 v* tag：自动构建 + 建 Release + 传两个 zip
+│   ├── ISSUE_TEMPLATE/        # 「没收录的码」和「坏了」两个模板
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   ├── CODEOWNERS
+│   └── dependabot.yml         # 每月跟进 CI 用到的官方 Action 版本
+│
+├── README.md                  # 就是这份
 ├── CHANGELOG.md               # 版本历史（v2.1 那几个静默 bug 都记在里面）
 ├── CONTRIBUTING.md            # 改代码前必读的几条硬约束
 ├── PRIVACY.md                 # 隐私政策，逐条可验
+├── SECURITY.md                # 威胁模型 + 漏洞怎么报
+├── SUPPORT.md                 # 遇到问题去哪儿问
+├── ROADMAP.md                 # 打算做什么、明确不做什么
+├── CODE_OF_CONDUCT.md         # 行为准则
+├── LICENSE                    # MIT
 └── docs/                      # 两张截图（由 make_screenshots.py 生成）
 ```
 
 `DeclineLens.user.js` 是唯一一个"生成物却要提交"的文件 —— 因为用户的安装链接和油猴的自动更新都直接指向它。**永远不要手改它**，改 `userscript.template.js` 或 `dict.js` 然后重新构建。
 
 `dist/` 在 `.gitignore` 里。扩展的两个 zip 通过 **GitHub Release** 分发，不进仓库。
+
+### 发一个新版本
+
+版本号只在 `manifest.json` 里改一处，剩下的交给 CI：
+
+```bash
+# 1. 改 manifest.json 的 version
+# 2. 在 CHANGELOG.md 里补上这一版的段落   ← 漏了这步 release.yml 会红，是故意的
+python build.py && node test.js
+git commit -am "DeclineLens v3.2.0" && git push
+git tag v3.2.0 && git push origin v3.2.0     # ← 这一推，剩下全自动
+```
+
+最后一条一推，`.github/workflows/release.yml` 会自己跑完：核对 tag 与 `manifest.json` 版本号一致 → 跑 60 项自检 → 构建 → 用 `make_release_notes.py` 拼正文（装法表格 + CHANGELOG 对应段落）→ 建 Release → 传两个 zip。任何一步不过就不发。
 
 ---
 

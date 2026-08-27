@@ -1,0 +1,28 @@
+# 统一缩进和换行，免得不同编辑器互相把对方的空白改掉，
+# diff 里全是看不见的噪音。
+# 说明：https://editorconfig.org
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.py]
+indent_size = 4
+
+[*.md]
+# Markdown 里行尾两个空格是「换行」的意思，不能删
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
+
+[*.{png,zip,ico}]
+# 二进制文件，什么都别动
+insert_final_newline = false
+trim_trailing_whitespace = false
