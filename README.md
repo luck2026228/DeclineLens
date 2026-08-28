@@ -1,5 +1,7 @@
 # DeclineLens 拒付透视镜
 
+中文 ｜ [English](README.en.md)
+
 [![CI](https://github.com/luck2026228/DeclineLens/actions/workflows/ci.yml/badge.svg)](https://github.com/luck2026228/DeclineLens/actions/workflows/ci.yml)
 [![最新版本](https://img.shields.io/github/v/release/luck2026228/DeclineLens?label=%E6%9C%80%E6%96%B0%E7%89%88&color=2ea44f)](https://github.com/luck2026228/DeclineLens/releases/latest)
 [![许可证](https://img.shields.io/github/license/luck2026228/DeclineLens?label=%E8%AE%B8%E5%8F%AF%E8%AF%81&color=blue)](LICENSE)
