@@ -12,8 +12,6 @@ Runs entirely locally, sends zero network requests. Two builds — a browser ext
 
 Note: the panel text is Chinese for now. An English UI is on the [roadmap](ROADMAP.md) but not done yet.
 
-## Install
-
 ### Userscript (recommended)
 
 Install [Tampermonkey](https://www.tampermonkey.net/) or [Violentmonkey](https://violentmonkey.github.io/) first, then click this link:
