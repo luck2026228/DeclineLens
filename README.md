@@ -10,8 +10,6 @@
 
 纯本地跑，一次网络请求都不发。浏览器插件和油猴脚本两个版本，功能一样，挑一个装。
 
-## 装
-
 ### 油猴脚本（推荐）
 
 先装 [Tampermonkey](https://www.tampermonkey.net/) 或 [Violentmonkey](https://violentmonkey.github.io/)，然后点这个链接：
