@@ -41,7 +41,7 @@ jobs:
 
     steps:
       - name: 取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.inputs.tag || github.ref_name }}
           fetch-depth: 0
