@@ -1,7 +1,7 @@
 name: 没收录的原因码 / Unrecognized decline code
 description: 界面显示了原始码但没给出中文解释，把报告贴进来就行
 title: "[码] "
-labels: ["dict"]
+labels: ["字典"]
 body:
   - type: markdown
     attributes:

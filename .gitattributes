@@ -7,3 +7,12 @@
 *.png binary
 *.zip binary
 *.ico binary
+
+# DeclineLens.user.js 是 build.py 生成的，但必须提交进仓库（用户的一键安装链接和
+# 油猴自动更新都指着它）。不标记的话有两个副作用：GitHub 首页的语言条会被这个
+# 十万字的生成物带偏，而且每次改字典，PR 的 diff 里都是几百行重复内容，真正改了
+# 什么反而看不见。标成 generated 之后，GitHub 会默认折叠它、也不算进语言统计。
+DeclineLens.user.js linguist-generated=true
+
+# 截图不算源码，别算进语言统计
+docs/** linguist-documentation=true
