@@ -160,6 +160,22 @@ FILES = ["content.js", "pagehook.js", "dict.js", "popup.html", "popup.js",
 #   还是占位符   → 整行去掉，换成一句话。宁可没有图，也不留碎图标。
 IMG_RE = re.compile(r'^!\[([^\]]*)\]\(docs/(screenshot-[a-z]+\.png)\)[ \t]*$', re.M)
 
+# 同一个道理，README 正文里那些指向别的文档的相对链接（ARCHITECTURE.md、
+# PRIVACY.md、README.en.md……）在成品里同样是死的——包里只有 README 自己和
+# 上面 FILES 那几个文件。所以把"没跟着一起进包"的相对链接改成 GitHub 上的
+# 绝对地址；跟着进包的（LICENSE、pagehook.js 这些）保持相对，本地能点开。
+LINK_RE = re.compile(r'\]\((?!https?://|mailto:|#)([^)\s#]+)((?:#[^)\s]*)?)\)')
+
+
+def _abs_links(t):
+    def rep(m):
+        path, frag = m.group(1), m.group(2)
+        if path in FILES:
+            return m.group(0)
+        return "](%s/blob/main/%s%s)" % (REPO_URL, path, frag)
+    return LINK_RE.sub(rep, t)
+
+
 
 def _drop_shot_note(t):
     """图都没了，图底下那段"这两张图是怎么来的"的注释也一并去掉，别自说自话。
@@ -183,8 +199,11 @@ def _drop_shot_note(t):
 def readme_for_ship():
     t = read("README.md")
     if "CHANGE-ME" in REPO_URL:
+        # 地址还没填，拼不出绝对链接，图和链接都只能原样留着
         return _drop_shot_note(IMG_RE.sub("（界面截图见项目主页）", t))
-    return IMG_RE.sub(r'![\1](%s/raw/main/docs/\2)' % REPO_URL, t)
+    # 顺序不能反：先把图换成绝对地址，_abs_links 才会因为它已经是 https:// 而跳过它。
+    # 反过来的话 docs/screenshot-*.png 会被改成 /blob/ 链接，那是网页不是图片。
+    return _abs_links(IMG_RE.sub(r'![\1](%s/raw/main/docs/\2)' % REPO_URL, t))
 
 
 SHIP_README = readme_for_ship()

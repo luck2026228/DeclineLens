@@ -14,7 +14,7 @@
   之前只设了页面 `window` 上的标记。两个版本同时安装、且油猴版抢先跑到时，插件版的 `content.js` 看不到任何标记，3 秒后就会往 `hookFail` 里写一条 —— 弹窗顶部弹出「CSP 拦住了注入」的黄条，**而实际上一切正常**。属于虚惊一场型的误报，现在消除了。
 - **Firefox 清单补上 `host_permissions: ["http://*/*", "https://*/*"]`。**
   `browser.scripting.registerContentScripts` 除了 `scripting` 权限，还要求扩展持有目标页面的主机权限，否则注入的脚本不会运行。缺这一条的后果是：文档里写的「Firefox 128+ 走官方 MAIN 世界通道」这条正路**从来没有真正启动过**，每次都静默退化成 `script` 标签注入 —— 而那条路会被有 CSP 的站点挡掉。
-  注意 Firefox MV3 里 `host_permissions` 默认是可选权限，用户仍需在 `about:addons` 里手动授权，README 4.3 节已写明这一步。
+  注意 Firefox MV3 里 `host_permissions` 默认是可选权限，用户仍需在 `about:addons` 里手动授权，README 的 Firefox 安装步骤里已写明这一步。
 
 ### 测试
 

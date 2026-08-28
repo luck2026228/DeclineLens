@@ -7,7 +7,7 @@ contact_links:
     about: "「这个能不能……」「为什么这么设计」「我想加个功能」—— 这类先来讨论区，别直接开 issue，也别直接动手写代码。"
 
   - name: 📖 先看常见问题
-    url: https://github.com/luck2026228/DeclineLens#十常见问题
+    url: https://github.com/luck2026228/DeclineLens/blob/main/SUPPORT.md#常见问题
     about: "付款成功时什么都不显示、浮球一直不出现、翻译成了英文原文 —— 这三条占了绝大多数「报错」，而且都不是 bug。"
 
   - name: 🆘 遇到问题去哪儿问

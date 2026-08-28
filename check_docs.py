@@ -47,16 +47,18 @@ BROKEN = chr(0xFFFD)
 SELF = os.path.basename(os.path.abspath(__file__))
 
 # 占位符和损坏字符：扫这些
-DOCS = ["README.md", "CONTRIBUTING.md", "SECURITY.md", "SUPPORT.md", "ROADMAP.md",
-        "CODE_OF_CONDUCT.md", "PRIVACY.md", "CHANGELOG.md", "package.json"]
+DOCS = ["README.md", "README.en.md", "ARCHITECTURE.md", "CONTRIBUTING.md",
+        "SECURITY.md", "SUPPORT.md", "ROADMAP.md", "CODE_OF_CONDUCT.md",
+        "PRIVACY.md", "CHANGELOG.md", "package.json"]
 
 # 损坏字符另外还要扫代码和流水线 —— 中文注释在这些文件里同样会被咬坏
 CODE = ["build.py", "setup_repo.py", "make_release_notes.py", "make_icons.py",
         "make_screenshots.py", "test.js", "dict.js", "content.js", "pagehook.js",
         "popup.js", "popup.html", "userscript.template.js"]
 
-# CHANGE-ME 在 README 5.6 节是**故意**留着的 —— 那一节讲的就是这个占位符长什么样。
-REPO_PH_OK = {"README.md"}
+# CHANGE-ME 在 ARCHITECTURE.md 的「唯一来源」那一节是**故意**留着的 ——
+# 那一节讲的就是这个占位符长什么样。
+REPO_PH_OK = {"ARCHITECTURE.md"}
 
 problems = []
 
@@ -113,7 +115,10 @@ def anchors(text):
         h = m.group(1)
         h = re.sub(r"`([^`]*)`", r"\1", h)                # 行内代码只留内容
         h = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", h)    # 链接只留文字
-        h = re.sub(r"[*_~]", "", h)                       # 去掉加粗/斜体标记
+        h = re.sub(r"[*~]", "", h)                        # 去掉加粗/删除线标记
+        # 下划线要区别对待：`_斜体_` 里的是标记，得去掉；`PAY_URL` 里的是标识符
+        # 的一部分，GitHub 会原样保留在锚点里。所以只删两边不挨着字母数字的那种。
+        h = re.sub(r"(?<!\w)_|_(?!\w)", "", h)
         s = re.sub(r"[^\w一-鿿\s-]", "", h.lower().strip(), flags=re.U)
         out.add(s.strip().replace(" ", "-"))
     return out

@@ -172,7 +172,8 @@ def main():
     #     https://img.shields.io/github/license/用户/仓库   ← README 顶上那排徽章
     #     @用户                                            ← .github/CODEOWNERS 里的 @ 提及
     # 前三种的共同点是「用户/仓库」这对路径段，所以按这对整体替换，一次盖住三种。
-    DOCS = ["README.md", "CONTRIBUTING.md", "SECURITY.md", "SUPPORT.md",
+    DOCS = ["README.md", "README.en.md", "ARCHITECTURE.md", "CONTRIBUTING.md",
+            "SECURITY.md", "SUPPORT.md",
             "ROADMAP.md", "CODE_OF_CONDUCT.md", "PRIVACY.md", "CHANGELOG.md",
             "package.json",
             ".github/CODEOWNERS",
@@ -234,7 +235,7 @@ def main():
     # 不能简单地全文搜 "CHANGE-ME"，会误报。有三处是**故意**留着的：
     #   dict.js:27          REPO_OK = REPO_URL.indexOf("CHANGE-ME") < 0   ← 门禁本身
     #   DeclineLens.user.js 同一行被内联进去的副本
-    #   README.md 第 5.6 节 讲的就是这个占位符长什么样，属于文档
+    #   ARCHITECTURE.md 「唯一来源」那一节 讲的就是这个占位符长什么样
     # 所以只查真正必须变的东西：两处 REPO_URL 赋值 + 油猴脚本那五个 @ 标签 +
     # README 里给用户抄的安装链接。
     problems = []
@@ -262,7 +263,7 @@ def main():
 
     # 除了本项目自己的地址，文档里出现别的 github.com/xxx/yyy 多半是旧账号没换干净。
     # 下面两类是**合法**的，不能报：
-    #   · README 5.6 节讲的就是占位符长什么样
+    #   · ARCHITECTURE.md 「唯一来源」那一节讲的就是占位符长什么样
     #   · 行为准则里引的 Mozilla 那套处理阶梯，是真的外部链接
     #
     # 注意这一段**不按 DOCS 名单扫，而是整个仓库扫一遍**。
