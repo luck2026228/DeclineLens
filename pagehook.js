@@ -14,6 +14,18 @@
 (function () {
   "use strict";
 
+  /* 先认一下自己跑在哪个"世界"。
+   *
+   * Firefox 128 以下不认识 manifest 里 content_scripts 的 world:"MAIN"，
+   * 会把这份脚本当成普通内容脚本塞进隔离世界跑。隔离世界里改 fetch 页面根本
+   * 看不见；更坏的是下面那句握手属性照样会写上 DOM，content.js 一看"已经钩
+   * 好了"，script 标签兜底就不再执行——老版本 Firefox 会被彻底钩废。
+   * 隔离世界里 browser.runtime.id 有值，主世界里 browser 压根不存在，
+   * 据此认出来直接退出。Chrome 的主世界同样没有 browser，不受影响。 */
+  try {
+    if (typeof browser !== "undefined" && browser.runtime && browser.runtime.id) return;
+  } catch (e) {}
+
   if (window.__declineLensHooked) return;
   window.__declineLensHooked = true;
 
@@ -47,6 +59,25 @@
    * 域名后面必须跟边界（/ : ? # 或结尾），否则 stripe.com.evil.com 这种
    * 仿冒域名也会命中。 */
   const PAY_URL = /(^|\/\/|\.)stripe\.com(?=[\/:?#]|$)|\/v1\/payment_intents?|\/v1\/setup_intents?|\/v1\/payment_methods?|\/v1\/charges?|\/v1\/tokens?|\/billing_portal/i;
+
+  /* 第二道闸：URL 只靠 /v1/xxx 这种泛路径命中时，还要看响应长不长得像 Stripe。
+   *
+   * PAY_URL 里 /v1/tokens、/v1/charges 这几条太泛，任何站点自家的
+   * /api/v1/tokens 都会命中；它失败时返回的 error.code 会被当成一条"拒付"
+   * 记下来，用户在弹窗里看到的是一条莫名其妙的"未收录的原因码"。
+   * 域名本来就是 stripe.com 的不走这道闸。
+   * 注意：PAY_URL 那一行不能动——test.js 会逐字比对它和油猴版是否一致。 */
+  const STRIPE_DOMAIN = /(^|\/\/|\.)stripe\.com(?=[\/:?#]|$)/i;
+  const STRIPE_ERR_TYPE = /^(card_error|api_error|invalid_request_error|idempotency_error|authentication_error|rate_limit_error)$/;
+  const STRIPE_OBJECT = /^(payment_intent|setup_intent|charge|token|payment_method|card|source|error)$/;
+
+  const looksLikeStripe = function (obj, url, type, outcome) {
+    if (STRIPE_DOMAIN.test(String(url))) return true;      // 域名就是 stripe.com
+    if (type && STRIPE_ERR_TYPE.test(String(type))) return true;  // 六种官方 error.type
+    if (outcome) return true;                              // Stripe 特有的 outcome 结构
+    if (typeof obj.object === "string" && STRIPE_OBJECT.test(obj.object)) return true;
+    return false;
+  };
 
   /* 从任意形状的响应里挖错误主体。
    * Stripe 在不同接口里把错误放在不同位置，全都要照顾到。 */
@@ -89,6 +120,7 @@
       || (httpStatus >= 400 && !!msg)
       || (!!msg && looksLikeFailure.test(String(msg)));
     if (!isErrorish) return;
+    if (!looksLikeStripe(obj, url, type, outcome)) return;
 
     const pi = obj.payment_intent || (err && err.payment_intent) || null;
 
@@ -156,8 +188,20 @@
     XHR.prototype.send = function () {
       try {
         const self = this;
+        /* 序号每次 send 都要加，不能只在命中时加——否则"命中的那次请求被中断、
+         * 同一个对象接着发一个不命中的请求"时，上一次留下的监听器序号仍然对得上，
+         * 照样会去读白名单之外的响应体。 */
+        const seq = (self.__sda_seq = (self.__sda_seq || 0) + 1);
         if (PAY_URL.test(self.__sda_url || "")) {
+          /* 同一个 XHR 对象会被页面反复复用（发完一次再 open 再 send）。
+           * 每次 send 都挂一个 load 监听器的话，会出两个问题：
+           *   1. 一个响应被解析 N 次，弹窗里出现 N 条一模一样的记录；
+           *   2. 更严重——上一次命中支付接口挂上的监听器，会在下一次**不命中**
+           *      的请求 load 时照样触发，去读白名单之外的响应体。那就等于自己
+           *      把"不命中的请求响应体连碰都不碰"这条隐私边界给破了。
+           * 用自增序号锁死"只认自己发的那一次"，once 让它触发完自动摘掉。 */
           self.addEventListener("load", function () {
+            if (self.__sda_seq !== seq) return;   // 不是我那一次，一个字节都不读
             try {
               /* responseType 是 json/blob 等时 responseText 会抛，别让它冒到页面。 */
               const t = self.responseType;
@@ -167,7 +211,7 @@
               }
               dig(JSON.parse(self.responseText), self.__sda_url, self.status);
             } catch (e) {}
-          });
+          }, { once: true });
         }
       } catch (e) {}
       return origSend.apply(this, arguments);

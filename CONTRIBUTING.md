@@ -111,7 +111,7 @@ const isVague = !code || code === "generic_decline"
 ## 四、提交前
 
 ```bash
-node test.js        # 或 npm test —— 必须 60 项全绿
+node test.js        # 或 npm test —— 必须 71 项全绿
 python build.py     # 必须重新构建，并把 DeclineLens.user.js 一起提交
 ```
 

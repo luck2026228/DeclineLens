@@ -2,7 +2,7 @@
 // @name         DeclineLens 拒付透视镜
 // @name:en      DeclineLens — Stripe decline reason decoder
 // @namespace    https://github.com/luck2026228/DeclineLens
-// @version      3.1.2
+// @version      3.1.3
 // @description  支付被拒时，把 Stripe 藏在响应里的真实原因翻译成人话，并告诉你下一步该做什么。纯本地运行，不上传任何数据。
 // @description:en Decodes the real Stripe decline reason hidden in the API response and tells you what to do next. 100% local, nothing is uploaded.
 // @author       DeclineLens
@@ -366,6 +366,20 @@
    * 收窄史与域名边界的理由见 pagehook.js 的注释。 */
   const PAY_URL = /(^|\/\/|\.)stripe\.com(?=[\/:?#]|$)|\/v1\/payment_intents?|\/v1\/setup_intents?|\/v1\/payment_methods?|\/v1\/charges?|\/v1\/tokens?|\/billing_portal/i;
 
+  /* 第二道闸：URL 只靠 /v1/xxx 这种泛路径命中时，还要看响应长不长得像 Stripe。
+   * 理由与实现同 pagehook.js，那边有详细注释。 */
+  const STRIPE_DOMAIN = /(^|\/\/|\.)stripe\.com(?=[\/:?#]|$)/i;
+  const STRIPE_ERR_TYPE = /^(card_error|api_error|invalid_request_error|idempotency_error|authentication_error|rate_limit_error)$/;
+  const STRIPE_OBJECT = /^(payment_intent|setup_intent|charge|token|payment_method|card|source|error)$/;
+
+  const looksLikeStripe = function (obj, url, type, outcome) {
+    if (STRIPE_DOMAIN.test(String(url))) return true;
+    if (type && STRIPE_ERR_TYPE.test(String(type))) return true;
+    if (outcome) return true;
+    if (typeof obj.object === "string" && STRIPE_OBJECT.test(obj.object)) return true;
+    return false;
+  };
+
   const findError = function (o) {
     return o.error
       || o.last_payment_error
@@ -403,6 +417,7 @@
       || (httpStatus >= 400 && !!msg)
       || (!!msg && looksLikeFailure.test(String(msg)));
     if (!isErrorish) return;
+    if (!looksLikeStripe(obj, url, type, outcome)) return;
 
     const pi = obj.payment_intent || (err && err.payment_intent) || null;
 
@@ -471,8 +486,19 @@
       XHR.prototype.send = function () {
         try {
           const self = this;
+          /* 序号每次 send 都要加，不能只在命中时加——否则"命中的那次请求被中断、
+           * 同一个对象接着发一个不命中的请求"时，上一次留下的监听器序号仍然对得上，
+           * 照样会去读白名单之外的响应体。 */
+          const seq = (self.__sda_seq = (self.__sda_seq || 0) + 1);
           if (PAY_URL.test(self.__sda_url || "")) {
+            /* 同一个 XHR 对象被页面复用时，每次 send 都挂监听器会导致：
+             *   1. 一个响应被解析 N 次，列表里出现 N 条重复；
+             *   2. 上一次命中支付接口留下的监听器，会在下一次**不命中**的请求
+             *      load 时照样触发，去读白名单之外的响应体——把自己写的隐私
+             *      边界给破了。
+             * 自增序号锁死"只认自己那一次"，once 触发完自动摘掉。 */
             self.addEventListener("load", function () {
+              if (self.__sda_seq !== seq) return;
               try {
                 /* responseType 是 json/blob 时读 responseText 会抛，别让异常冒到页面 */
                 const t = self.responseType;
@@ -482,7 +508,7 @@
                 }
                 dig(JSON.parse(self.responseText), self.__sda_url, self.status);
               } catch (e) {}
-            });
+            }, { once: true });
           }
         } catch (e) {}
         return origSend.apply(this, arguments);

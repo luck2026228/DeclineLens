@@ -295,6 +295,72 @@ const STRIPE_URL = "https://api.stripe.com/v1/payment_intents/pi_x/confirm";
   eq("自建代理若走 Stripe 风格 /v1/payment_intents 仍命中",
      p.captured.length, before + 2);
 
+
+  /* ── v3.1.3 回归：泛路径闸门 ──────────────────────────────────────────
+   * /v1/tokens、/v1/charges 这几条路径规则太泛，任何站点自家的 API 都会命中。
+   * 它失败时返回的自家错误码不该被记成一条"拒付"。 */
+  await feed(p, "https://shop.example.com/api/v1/tokens",
+             { error: { code: "TOKEN_EXPIRED", message: "登录态过期，请重新登录" } }, 401);
+  eq("商户自家的 /api/v1/tokens 报错不再被记成拒付（v3.1.2 的误抓）",
+     p.captured.length, before + 2);
+
+  await feed(p, "https://shop.example.com/api/v1/tokens", SAMPLE_DECLINE, 402);
+  eq("同一条路径上真的是 Stripe 形状的错误（error.type 合法）仍然记",
+     p.captured.length, before + 3);
+
+  /* ── v3.1.3 回归：XHR 对象复用 ────────────────────────────────────────
+   * 页面复用同一个 XHR 时，旧版每次 send 都挂一个 load 监听器，永不摘除：
+   *   1. 一个响应被记 N 条；
+   *   2. 命中支付接口留下的监听器，会在后续**不命中**的请求上照样触发，
+   *      去读白名单之外的响应体——把自己写的隐私边界破掉。 */
+  (function () {
+    function FakeXHR() { this._h = []; this.responseType = ""; this.status = 402; }
+    FakeXHR.prototype.open = function (m, u) {};
+    FakeXHR.prototype.send = function () {};
+    FakeXHR.prototype.addEventListener = function (t, fn, opt) {
+      if (t === "load") this._h.push({ fn: fn, once: !!(opt && opt.once) });
+    };
+    FakeXHR.prototype.removeEventListener = function (t, fn) {
+      this._h = this._h.filter(function (h) { return h.fn !== fn; });
+    };
+    FakeXHR.prototype._fire = function () {
+      const hs = this._h.slice();
+      const self = this;
+      this._h = this._h.filter(function (h) { return !h.once; });
+      hs.forEach(function (h) { h.fn.call(self); });
+    };
+
+    const px = makePage({ isTop: false });
+    px.fetch = function () { return Promise.resolve(fakeResponse({}, 200)); };
+    px.XMLHttpRequest = FakeXHR;
+    vm.runInContext(read("pagehook.js"), vm.createContext(px), { filename: "pagehook.js" });
+
+    const x = new px.XMLHttpRequest();
+    x.open("POST", STRIPE_URL);
+    x.__sda_url = STRIPE_URL;
+    x.responseText = JSON.stringify(SAMPLE_DECLINE);
+    x.send();
+    x.send();                       // 页面对同一个对象连发两次
+    x._fire();
+    eq("XHR：同一对象连发两次，一个响应只记 1 条（旧版会记 2 条）",
+       px.captured.length, 1);
+
+    /* 命中的请求挂上监听器后被中断（load 没触发），对象接着发一个不命中的请求 */
+    const y = new px.XMLHttpRequest();
+    y.__sda_url = STRIPE_URL;
+    y.send();                       // 命中，挂监听器，但不 _fire（模拟被中断）
+    let peeked = 0;
+    y.__sda_url = "https://shop.example.com/api/private/profile";
+    Object.defineProperty(y, "responseText", {
+      configurable: true,
+      get: function () { peeked++; return JSON.stringify({ error: { code: "x" } }); },
+    });
+    y.send();                       // 不命中
+    y._fire();
+    eq("XHR：残留监听器不会去读白名单之外的响应体", peeked, 0);
+    eq("XHR：白名单之外的请求一条都没记", px.captured.length, 1);
+  })();
+
   /* ════════════════════════════════════════════════════════════════════════
    * 3. 生成的油猴脚本（这才是 v2.1 真正坏掉的地方）
    * ══════════════════════════════════════════════════════════════════════ */
@@ -416,6 +482,23 @@ const STRIPE_URL = "https://api.stripe.com/v1/payment_intents/pi_x/confirm";
   eq("Chrome / Firefox manifest 版本号一致", fv, mv);
   ok("油猴脚本版本号与 manifest 一致",
      userSrc.indexOf("@version      " + mv) > 0 || userSrc.indexOf("@version " + mv) > 0);
+
+  /* v3.1.3：结构性检查 */
+  const contentSrc = read("content.js");
+  ok("content.js 里已经没有那段永远不会执行的 registerMainWorld（scripting API 在内容脚本里不存在）",
+     contentSrc.indexOf("registerContentScripts([") < 0);
+  ok("子 frame 不自己落盘，把记录转给顶层统一写（跨 frame 的 storage 竞态）",
+     /__sda_up/.test(contentSrc) && /window\.top\.postMessage/.test(contentSrc));
+  ok("注入失败时 script 标签也会被摘掉（onerror 兜底）",
+     /s\.onerror\s*=/.test(contentSrc));
+
+  const ffM = JSON.parse(read("manifest.firefox.json"));
+  ok("Firefox 清单里 pagehook.js 走的是 world:MAIN（128+ 的官方通道）",
+     ffM.content_scripts.some((e) => (e.js || []).indexOf("pagehook.js") >= 0 && e.world === "MAIN"));
+  ok("Firefox 清单不再要 scripting 权限（用不上了）",
+     (ffM.permissions || []).indexOf("scripting") < 0);
+  ok("Chrome 清单有 web_accessible_resources，兜底注入这条路不是死的",
+     Array.isArray(JSON.parse(read("manifest.json")).web_accessible_resources));
 
   /* ── 收尾 ─────────────────────────────────────────────────────────────── */
   console.log("\n" + "─".repeat(52));

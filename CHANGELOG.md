@@ -6,6 +6,60 @@
 
 ---
 
+## [3.1.3] — 2026-09-02
+
+### 修复
+
+- **Firefox 的「官方 MAIN 世界通道」以前是死代码，现在真的走通了。**
+  `content.js` 里的 `registerMainWorld()` 在内容脚本里调用 `browser.scripting.registerContentScripts`，
+  但 `scripting` 这套 API 在内容脚本里根本不存在（内容脚本只拿得到 `storage` / `runtime` / `i18n` 那一小撮），
+  `browser.scripting` 恒为 `undefined`，函数每次都在第一句就 `return` —— v3.1.2 补的 `host_permissions`
+  也救不了它。后果是 Firefox 上只剩 `script` 标签注入这一条路，而它会被页面 CSP 挡掉，
+  `checkout.stripe.com` 自己就是严格 CSP，**恰恰是最该抓到的那个页面抓不到**。
+  改法：`manifest.firefox.json` 的 `content_scripts` 里直接给 `pagehook.js` 声明 `"world": "MAIN"`
+  （Firefox 128 起原生支持）。`registerMainWorld()` 整段删除，`scripting` 权限一并去掉。
+  Firefox 127 及以下不认识 `world` 这个 key，会把 `pagehook.js` 塞进隔离世界 —— 那样它会插上握手旗子、
+  让 `script` 标签兜底不再执行，等于把老版本钩废；所以 `pagehook.js` 开头加了一句世界判定
+  （隔离世界里 `browser.runtime.id` 有值，主世界里没有），认出来直接退出，照旧落回兜底路径。
+
+- **XHR 对象被复用时，监听器会一直堆积。**
+  `pagehook.js` 每次 `send()` 命中白名单就 `addEventListener("load", ...)`，从不摘除。
+  同一个 XHR 复用 N 次就挂 N 个监听器，`load` 时全部触发：一个响应被记 N 条；
+  更糟的是，命中支付接口留下的监听器，会在后续**不命中**的请求 `load` 时照样触发，
+  去读白名单之外的响应体 —— 直接破掉「不命中的请求，响应体连碰都不碰」这条自己写的隐私边界。
+  改法：每次 `send()` 打一个自增序号，闭包捕获，监听器里序号对不上立刻 `return`；
+  监听器改成 `{ once: true }`，触发完自动摘除。序号是**每次 send 都加**，不是只在命中时加 ——
+  否则「命中的请求被中断、同一个对象接着发一个不命中的请求」时序号仍然对得上，漏洞照旧。
+  油猴版有同样的代码，一并改了。
+
+- **跨 frame 的写入竞态。**
+  `content.js` 是 `all_frames: true`，顶层页面和每个 iframe 各跑一份实例；
+  里面那条 `writeQueue` 只在自己这份实例内排队，跨 frame 完全不排队，
+  而 `chrome.storage.local` 是所有 frame 共用的同一份 —— 两个 frame 同时 `get→改→set`，
+  后写的那次拿到旧数组，会把另一条记录整个盖掉。Stripe Elements 的确认请求恰恰是从 iframe 里发出去的，
+  正是最容易撞车的场景。
+  改法：子 frame 不再自己落盘，把记录 `postMessage` 给顶层，由顶层那一份实例排队统一写。
+
+- **`/v1/tokens`、`/v1/charges` 这几条泛路径会误抓非支付站点。**
+  任何站点自家的 `/api/v1/tokens`（比如登录换 token）都会命中白名单，失败响应里的 `error.code`
+  被记成一条「拒付」，弹窗里冒出莫名其妙的「未收录的原因码」。
+  改法：URL 不是 `stripe.com` 域名、只靠泛路径命中时，追加一道校验 —— `error.type` 必须是 Stripe
+  的六种官方类型之一，或者响应里有 Stripe 特有的 `outcome` / `object` 结构，否则不落盘。
+  `PAY_URL` 那一行没动（两个版本必须逐字一致，`test.js` 会查）。
+
+- **Chrome 版的兜底注入以前是死路。**
+  `content.js` 用 `<script src="chrome-extension://...">` 加载 `pagehook.js`，
+  但 Chrome 清单里没有 `web_accessible_resources`，MV3 下这条路必然加载失败，
+  失败后 `<script>` 元素还留在页面 DOM 里（只写了 `onload` 清理、没写 `onerror`）。
+  实际影响很小（Chrome 走清单的 MAIN 世界很可靠，兜底路平时不执行），但补上了：
+  Chrome 清单加 `web_accessible_resources`，注入代码加 `onerror` 清理。
+
+### 测试
+
+- 自检从 60 项加到 **71 项**：泛路径闸门 2 条、XHR 复用 3 条、结构性检查 6 条。
+
+---
+
 ## [3.1.2] — 2026-08-28
 
 ### 修复

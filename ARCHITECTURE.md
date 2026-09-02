@@ -205,7 +205,7 @@ const REPO_OK  = REPO_URL.indexOf("CHANGE-ME") < 0;
 node test.js        # 或者 npm test
 ```
 
-60 项断言，零依赖，不需要浏览器。用 Node 的 `vm` 模块造假页面，把 `pagehook.js` 和构建好的油猴脚本分别放进去跑，喂真实形状的 Stripe 响应。
+71 项断言，零依赖，不需要浏览器。用 Node 的 `vm` 模块造假页面，把 `pagehook.js` 和构建好的油猴脚本分别放进去跑，喂真实形状的 Stripe 响应。
 
 | 节 | 管什么 |
 | --- | --- |
@@ -235,7 +235,7 @@ DeclineLens/
 ├── DeclineLens.user.js        # 构建产物，但要提交 —— raw 安装链接和自动更新都指着它
 │
 ├── build.py                   # 打包：两个 zip + 油猴脚本，带自检
-├── test.js                    # 60 项自检，零依赖
+├── test.js                    # 71 项自检，零依赖
 ├── check_docs.py              # 文档体检：占位符 / 损坏字符 / 内部死链
 ├── make_icons.py              # 生成三个尺寸的图标
 ├── make_screenshots.py        # 用无头浏览器渲染真实界面，生成 docs/ 里的两张截图
@@ -247,7 +247,7 @@ DeclineLens/
 ├── .editorconfig              # 缩进与换行统一，免得编辑器互相改空白
 ├── .github/
 │   ├── workflows/
-│   │   ├── ci.yml             # 每次 push：重新构建 + 验同步 + 60 项自检 + 文档体检
+│   │   ├── ci.yml             # 每次 push：重新构建 + 验同步 + 71 项自检 + 文档体检
 │   │   └── release.yml        # 推一个 v* tag：自动构建 + 建 Release + 传两个 zip
 │   ├── ISSUE_TEMPLATE/        # 「没收录的码」和「坏了」两个模板
 │   ├── PULL_REQUEST_TEMPLATE.md
@@ -286,4 +286,4 @@ git commit -am "DeclineLens v3.2.0" && git push
 git tag v3.2.0 && git push origin v3.2.0     # ← 这一推，剩下全自动
 ```
 
-最后一条一推，`.github/workflows/release.yml` 会自己跑完：核对 tag 与 `manifest.json` 版本号一致 → 跑 60 项自检 → 文档体检 → 构建 → 用 `make_release_notes.py` 拼正文 → 建 Release → 传两个 zip。任何一步不过就不发。
+最后一条一推，`.github/workflows/release.yml` 会自己跑完：核对 tag 与 `manifest.json` 版本号一致 → 跑 71 项自检 → 文档体检 → 构建 → 用 `make_release_notes.py` 拼正文 → 建 Release → 传两个 zip。任何一步不过就不发。

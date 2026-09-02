@@ -3,8 +3,8 @@
  * ----------------------------------------------------------------------------
  * 三件事：
  *   1. 收 pagehook 从主世界发来的 postMessage，写进 chrome.storage.local
- *   2. Firefox 回退——那边 manifest 不支持 world:"MAIN"，128+ 优先走
- *      scripting API 的官方 MAIN 世界通道，再老的版本用 script 标签补注入
+ *   2. Firefox 回退——128+ 由 manifest 的 world:"MAIN" 直接搞定，
+ *      128 以下不认这个 key，在这里用 script 标签补注入
  *   3. 注入失败检测——钩子没装上时在 storage 里留标记，popup 会提醒用户
  *
  * 主世界拿不到 chrome.storage，隔离世界钩不到页面的 fetch，所以必须两边配合，
@@ -48,14 +48,43 @@
     });
   };
 
-  /* 只认本窗口发来的、带自家标记的消息。
-   * e.source !== window 能挡掉别的 frame 冒充；页面自己伪造消息最多是往
-   * 本地列表里塞假记录，没有更坏的后果（渲染端一律转义）。 */
+  /* 谁负责落盘：只有顶层窗口。
+   *
+   * content.js 是 all_frames:true，顶层页面和每个 iframe 各跑一份实例。
+   * 上面那条 writeQueue 只在**自己这份实例内**排队，跨 frame 完全不排队；
+   * 而 chrome.storage.local 是所有 frame 共用的同一份。两个 frame 同时
+   * get→改→set，后写的那次拿到的是旧数组，会把另一条记录整个盖掉。
+   * Stripe Elements 的确认请求恰恰是从 iframe 里发出去的，顶层同时还有
+   * payment_intents 的响应——正是最容易撞车的场景。
+   *
+   * 所以：子 frame 不落盘，把记录转给顶层，由顶层那一份实例排队统一写。 */
+  const isTop = (function () {
+    try { return window.top === window; } catch (e) { return false; }
+  })();
+
+  const relayUp = function (payload) {
+    try { window.top.postMessage({ __sda_up: true, payload: payload }, "*"); }
+    catch (e) { appendRecord(payload); }   /* 顶层够不着就自己写，别把记录弄丢 */
+  };
+
   window.addEventListener("message", function (e) {
-    if (e.source !== window) return;
     const d = e.data;
-    if (!d || d.__sda !== true || !d.payload || typeof d.payload !== "object") return;
-    appendRecord(d.payload);
+    if (!d || !d.payload || typeof d.payload !== "object") return;
+
+    /* 自家 pagehook 发来的（同一个 window）。
+     * e.source === window 能挡掉别的 frame 冒充；页面自己伪造消息最多是往
+     * 本地列表里塞假记录，没有更坏的后果（渲染端一律转义）。 */
+    if (d.__sda === true && e.source === window) {
+      if (isTop) appendRecord(d.payload);
+      else relayUp(d.payload);
+      return;
+    }
+
+    /* 子 frame 转上来的。只有顶层认这个，而且必须真是别的窗口发来的，
+     * 免得页面在顶层自己给自己发一条混进来。 */
+    if (d.__sda_up === true && isTop && e.source !== window) {
+      appendRecord(d.payload);
+    }
   }, false);
 
   /* ── Firefox 回退注入 ─────────────────────────────────────────────────── */
@@ -73,41 +102,27 @@
       const s = document.createElement("script");
       s.src = chrome.runtime.getURL("pagehook.js");
       s.async = false;                       // 保持执行顺序，别被页面脚本插队
-      s.onload = function () { s.remove(); };
+      /* 成功、失败都得把标签摘掉。只写 onload 的话，一旦加载失败（manifest
+       * 漏了 web_accessible_resources、或者页面 CSP 把它拦了），页面 DOM 里
+       * 就会留一个死 <script> 元素，白白给页面留痕。 */
+      const drop = function () { try { s.remove(); } catch (e) {} };
+      s.onload = drop;
+      s.onerror = drop;
       (document.head || document.documentElement).appendChild(s);
     } catch (e) {}
   };
 
-  /* Firefox 128+ 的正路：用 scripting API 把 pagehook 注册进 MAIN 世界。
+  /* 这里原来有个 registerMainWorld()，用 browser.scripting.registerContentScripts
+   * 走 Firefox 的官方 MAIN 世界通道。那是死代码，已删——scripting 这套 API
+   * 在内容脚本里根本不存在（内容脚本只拿得到 storage / runtime / i18n 那一小撮），
+   * browser.scripting 恒为 undefined，函数每次都在第一句就 return，从来没生效过。
    *
-   * script 标签注入有两个治不好的病：
-   *   1. 页面 CSP 的 script-src 会把它直接拦掉——严格 CSP 的收银台一拦一个准，
-   *      而且拦得无声无息，用户看到的就是"什么都抓不到"
-   *   2. 它要先加载扩展文件，永远比页面内联脚本慢半拍；页面 bundle 在解析期
-   *      就把 fetch 存进闭包的话，钩不上
-   * 官方 MAIN 世界通道两个病都没有。注意注册只对**之后的**页面加载生效，
-   * 当前这个页面来不及，仍靠上面的 inject()。
+   * 现在改成正路：manifest.firefox.json 的 content_scripts 里直接给 pagehook.js
+   * 写 "world": "MAIN"（Firefox 128 起原生支持，Mozilla 官方博客有确认）。
+   * Firefox 128 以下不认识这个 key，会把 pagehook 塞进隔离世界——pagehook.js
+   * 开头有一句世界判定，认出来就直接退出，于是照旧落到下面的 script 标签兜底。
    *
-   * Chrome 没有 browser 命名空间（它的 manifest 里已有 world:"MAIN"），
-   * 这段在 Chrome 上自动跳过；Firefox 109–127 的 registerContentScripts
-   * 不认识 world:"MAIN" 会抛，落进 catch，照旧走 script 标签。 */
-  const registerMainWorld = function () {
-    try {
-      if (typeof browser === "undefined" || !browser.scripting
-          || !browser.scripting.registerContentScripts) return;
-      browser.scripting.registerContentScripts([{
-        id: "declinelens-pagehook",
-        js: ["pagehook.js"],
-        matches: ["http://*/*", "https://*/*"],
-        runAt: "document_start",
-        world: "MAIN",
-        allFrames: true,
-        persistAcrossSessions: false,
-      }]).catch(function () { /* 每个 frame 都会走到这，同 id 重复注册必抛，忽略 */ });
-    } catch (e) {}
-  };
-
-  /* 立刻注，不要等。
+   * 立刻注，不要等。
    *
    * v2.1 在这里 setTimeout 了 800ms，等于自废武功：整套设计的前提就是赶在
    * 页面 bundle 把 fetch 存进闭包之前钩上，晚 800ms 基本什么都抓不到了。
@@ -115,7 +130,6 @@
    * Chrome：manifest 里 pagehook 以 world:"MAIN" 先跑，属性已经在了，这里直接返回。
    * Firefox：manifest 没有 MAIN 世界这条，属性不在，于是在这里补注入。 */
   inject();
-  registerMainWorld();
 
   /* 再兜一次。两个内容脚本谁先跑理论上按 manifest 顺序，但不同浏览器/版本
    * 不保证，microtask 后再确认一遍，代价可以忽略。 */

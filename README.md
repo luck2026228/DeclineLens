@@ -33,7 +33,9 @@ Tampermonkey 图标的下拉菜单里还有三条命令：打开面板（浮球�
 
 下 firefox 那个 zip 解压，地址栏输 `about:debugging#/runtime/this-firefox`，「临时载入附加组件」选目录里的 `manifest.json`。
 
-然后有一步别漏：**`about:addons` → DeclineLens → 权限 → 允许「访问所有网站的数据」**。Firefox 的 `scripting.registerContentScripts` 要求扩展持有目标页面的主机权限，不授权的话官方注入通道根本不启动，会静默退化成 script 标签注入，而那条路会被带 CSP 的站点挡掉，`checkout.stripe.com` 自己就是。
+**Firefox 128 及以上**不用做任何额外设置：manifest 里 `pagehook.js` 直接声明了 `"world": "MAIN"`，这是 Firefox 128 起原生支持的官方通道，装上就生效。
+
+**Firefox 127 及以下**没有这个通道，只能退回 script 标签注入，而那条路会被带严格 CSP 的站点挡掉，`checkout.stripe.com` 自己就是。这种情况下弹窗顶部会出现黄色警示栏告诉你哪个站点没钩上——遇到了就改用油猴版，油猴在浏览器层注入，不吃页面那套 CSP。
 
 另外「临时载入」重启浏览器就失效，每次开机都得重来。所以 Firefox 上还是用油猴版省事，功能完全一样。
 
@@ -146,7 +148,7 @@ insufficient_funds: {
 ## 想改代码
 
 ```bash
-node test.js        # 60 项自检，零依赖，不需要浏览器
+node test.js        # 71 项自检，零依赖，不需要浏览器
 python build.py     # 出两个扩展 zip 和油猴脚本
 ```
 

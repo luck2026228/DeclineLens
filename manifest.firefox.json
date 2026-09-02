@@ -1,11 +1,10 @@
 {
   "manifest_version": 3,
   "name": "DeclineLens 拒付透视镜",
-  "version": "3.1.2",
+  "version": "3.1.3",
   "description": "支付被拒时，把 Stripe 藏在响应里的真实原因翻译成人话，并告诉你下一步该做什么。纯本地运行，不上传任何数据。",
   "permissions": [
-    "storage",
-    "scripting"
+    "storage"
   ],
   "host_permissions": [
     "http://*/*",
@@ -33,6 +32,18 @@
     }
   ],
   "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "pagehook.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true
+    },
     {
       "matches": [
         "http://*/*",

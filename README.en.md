@@ -152,7 +152,7 @@ After adding one, run `node test.js`, then `python build.py`. Never hand-edit `D
 ## Hacking on the code
 
 ```bash
-node test.js        # 60 self-checks, zero dependencies, no browser needed
+node test.js        # 71 self-checks, zero dependencies, no browser needed
 python build.py     # produces both extension zips and the userscript
 ```
 
