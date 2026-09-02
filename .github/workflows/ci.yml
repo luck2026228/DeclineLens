@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   test:
-    name: 自检（构建 + 71 项断言）
+    name: 自检（构建 + 全部断言）
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

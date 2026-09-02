@@ -26,7 +26,7 @@
 
 ### 所有 PR 都要过
 
-- [ ] `node test.js` 全绿（现在是 71 项）
+- [ ] `node test.js` 全绿
 - [ ] `python build.py` 跑过了，**并且把重新生成的 `DeclineLens.user.js` 一起提交了**
       <sub>忘了这一步 CI 会直接红 —— 它会在云上重跑一次 build，然后要求 `git diff` 干净。</sub>
 - [ ] 没有引入任何依赖（`build.py` 只用 Python 标准库，`test.js` 只用 Node 标准库）
